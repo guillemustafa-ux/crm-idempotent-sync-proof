@@ -256,53 +256,6 @@ source, runs the suite, reports what caught it, restores the file, and
 verifies the tree is clean again:
 
 ```text
-baseline: {'PASS' if baseline_code == 0 else 'FAIL'}")
-    if baseline_code != 0:
-        print("the suite must be green before mutating:", baseline_failed)
-        return 1
-
-    survived: list[str] = []
-    for mutation in MUTATIONS:
-        original = mutation.path.read_text(encoding="utf-8")
-        if mutation.old not in original:
-            print(f"\n!! {mutation.name}: anchor not found in {mutation.path.name}")
-            return 1
-        # ``newline="\n"``: on Windows the default would restore the file
-        # with CRLF endings, and the repo pins LF.
-        try:
-            mutation.path.write_text(
-                original.replace(mutation.old, mutation.new, 1), encoding="utf-8", newline="\n"
-            )
-            code, failed = run_suite()
-        finally:
-            mutation.path.write_text(original, encoding="utf-8", newline="\n")
-
-        print(f"\n[{mutation.name}]")
-        print(f"  defect: {mutation.defect}")
-        if mutation.evidence:
-            print(f"  how it is caught: {mutation.evidence}")
-        if code == 0:
-            print("  CAUGHT BY: nothing -- the suite does not cover this defect")
-            survived.append(mutation.name)
-        else:
-            for name in failed:
-                print(f"  caught by: {name}")
-
-    print()
-    dirty = working_tree_dirty()
-    if dirty:
-        print("the source files were NOT restored cleanly:")
-        print(dirty)
-        return 1
-    if survived:
-        print(f"{len(survived)} mutation(s) survived: {', '.join(survived)}")
-        return 1
-    print(f"all {len(MUTATIONS)} mutations were caught; the suite bites (working tree clean again)")
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
 baseline: PASS
 
 [search-then-create]
@@ -314,7 +267,7 @@ baseline: PASS
   caught by: test_a_real_kill_after_a_hubspot_write_restarts_without_duplicates[after_deal_response-redelivery]
   caught by: test_a_real_kill_after_a_hubspot_write_restarts_without_duplicates[after_deal_response-resume]
   caught by: test_a_write_that_never_landed_is_actually_sent
-  … 18 tests in all
+  … 19 tests in all
 
 [plain-create]
   defect: Create the deal with a plain POST, still carrying the unique external_order_id, instead of upserting by it.
@@ -325,7 +278,7 @@ baseline: PASS
   caught by: test_a_real_kill_after_a_hubspot_write_restarts_without_duplicates[after_deal_response-redelivery]
   caught by: test_a_real_kill_after_a_hubspot_write_restarts_without_duplicates[after_deal_response-resume]
   caught by: test_a_write_that_never_landed_is_actually_sent
-  … 16 tests in all
+  … 17 tests in all
 
 [external-id-per-delivery]
   defect: Generate the external_order_id at delivery time instead of deriving it from the order, so a redelivery plants a value HubSpot has never seen.
@@ -340,7 +293,7 @@ baseline: PASS
 
 [no-durable-intent]
   defect: Send each step without recording the intent first, so a process killed mid-call wakes up with no record that a call was in flight.
-  how it is caught: NOT a visible duplicate, by design: the resend after a kill is an upsert and finds the record either way. What fires is the record itself -- the crash tests' first assertion, that the killed child left an intent row in flight, and the ledger and replay tests that read the intents back.
+  how it is caught: NOT a visible duplicate, by design: the resend after a kill is an upsert and finds the record either way. What fires is the record itself -- the crash tests' assertion that the killed child left an intent row in flight, and the ledger and replay tests that read the intents back.
   caught by: test_a_lost_response_on_the_deal_upsert_is_settled_by_resending_it
   caught by: test_a_real_kill_after_a_hubspot_write_restarts_without_duplicates[after_association_response-redelivery]
   caught by: test_a_real_kill_after_a_hubspot_write_restarts_without_duplicates[after_association_response-resume]
@@ -364,7 +317,6 @@ baseline: PASS
   caught by: test_a_bad_signature_is_rejected_and_nothing_is_written[wrong-hmac]
   caught by: test_an_engine_without_a_secret_accepts_nothing
   caught by: test_an_unexpected_exception_in_the_child_has_its_own_exit_code
-  caught by: test_two_simultaneous_deliveries_make_one_deal[one-shared-ledger]
 
 [accept-conflicting-redelivery]
   defect: Accept a redelivery whose content differs from what was first recorded for the same order id, instead of refusing to choose between them.

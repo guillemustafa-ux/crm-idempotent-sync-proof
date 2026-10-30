@@ -95,7 +95,7 @@ MUTATIONS = [
         new="        return None\n",
         evidence="NOT a visible duplicate, by design: the resend after a kill is an upsert "
         "and finds the record either way. What fires is the record itself -- the crash "
-        "tests' first assertion, that the killed child left an intent row in flight, and "
+        "tests' assertion that the killed child left an intent row in flight, and "
         "the ledger and replay tests that read the intents back.",
     ),
     Mutation(
