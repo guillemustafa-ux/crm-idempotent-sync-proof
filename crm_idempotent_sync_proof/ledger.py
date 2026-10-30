@@ -29,6 +29,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
+import time
 from dataclasses import dataclass
 from typing import Any
 
@@ -120,10 +121,28 @@ class Ledger:
         # Autocommit mode; every multi-statement change opens its own
         # ``BEGIN IMMEDIATE`` so two workers on one file serialise cleanly.
         self._conn = sqlite3.connect(path, timeout=30, isolation_level=None)
-        self._conn.execute("PRAGMA journal_mode=WAL")
+        self._enable_wal()
         self._conn.execute("PRAGMA synchronous=FULL")
         self._conn.execute("PRAGMA foreign_keys=ON")
         self._conn.executescript(_SCHEMA)
+
+    def _enable_wal(self) -> None:
+        """Switch a new file to WAL, waiting out a second worker doing the same.
+
+        Two workers opening a brand-new file at once both try to switch its
+        journal mode, and SQLite answers the loser "database is locked"
+        **without** going through the busy timeout. So the switch is retried
+        here until the other one has finished it.
+        """
+        deadline = time.monotonic() + 30
+        while True:
+            try:
+                self._conn.execute("PRAGMA journal_mode=WAL")
+                return
+            except sqlite3.OperationalError as exc:
+                if "locked" not in str(exc) or time.monotonic() > deadline:
+                    raise
+                time.sleep(0.05)
 
     def close(self) -> None:
         self._conn.close()
