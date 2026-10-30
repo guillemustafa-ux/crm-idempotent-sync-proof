@@ -19,6 +19,7 @@ import pytest
 
 from crm_idempotent_sync_proof.client import HubSpotRejected, UnknownOutcome
 from crm_idempotent_sync_proof.fake_hubspot import (
+    ROUTE_ASSOCIATION,
     ROUTE_CONTACT_UPSERT,
     ROUTE_DEAL_CREATE,
     ROUTE_DEAL_UPSERT,
@@ -75,6 +76,10 @@ def test_a_real_kill_after_a_hubspot_write_restarts_without_duplicates(
         assert [l.split(" ")[3] for l in wire(hubspot, ROUTE_CONTACT_UPSERT)] == ["new=true", "new=false"]
     if crash_at == "after_deal_response":
         assert [l.split(" ")[3] for l in wire(hubspot, ROUTE_DEAL_UPSERT)] == ["new=true", "new=false"]
+    if crash_at == "after_association_response":
+        # The association PUT is sent again, and HubSpot still holds one link.
+        assert len(wire(hubspot, ROUTE_ASSOCIATION)) == 2
+        assert len(hubspot.associations()) == 1
     order = ledger_factory().get_order("ORD-1001")
     assert (order.sync_status, order.hubspot_contact_id, order.hubspot_deal_id, order.associated) == (
         SYNC_SYNCED, contact["id"], deal["id"], True,

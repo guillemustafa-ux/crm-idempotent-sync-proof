@@ -130,8 +130,8 @@ merely looks for.
   without both ids (`CHECK` constraints). Enforced by the database, not by
   a code review.
 * **429 means resend the same request, after the window HubSpot announced.**
-  HubSpot documents no `Retry-After` and none was seen live; what it does
-  send, on every response, is `X-HubSpot-RateLimit-Interval-Milliseconds`
+  No 429 was provoked live and the documentation pages read list no
+  `Retry-After`; what HubSpot does send, on every response (seen live), is `X-HubSpot-RateLimit-Interval-Milliseconds`
   (10000 live). The client waits that long and resends, up to three times,
   then stops with a definite `429` -- a throttled request was not
   processed -- and the next delivery or `resume` sends it again.
@@ -253,7 +253,8 @@ python scripts/verify_the_suite_bites.py
 
 It refuses to run on a dirty tree, reintroduces each defect into the real
 source, runs the suite, reports what caught it, restores the file, and
-verifies the tree is clean again:
+verifies the tree is clean again (abridged below: the script lists every
+test that caught each mutation):
 
 ```text
 baseline: PASS
@@ -362,7 +363,9 @@ A replay **with different content** for the same order id is refused
 (`ConflictingRedelivery`, nothing written). Decide which version is true
 outside the sync.
 
-One thing to know before replaying on purpose: an upsert is an update. A
+One thing to know before replaying on purpose: an upsert is an update (the
+documented semantics: "if the contacts already exist, they'll be updated";
+live, the second upsert was only seen with identical properties). A
 resent deal upsert writes the properties the sync owns -- `dealname`,
 `amount`, `pipeline`, `dealstage` -- back over whatever a human changed in
 HubSpot since. A synced order is never resent, so this only happens when the
@@ -493,6 +496,12 @@ sends one input per upsert).
 And it goes **beyond what ran live** in these places, each modelled on the
 side that makes the client's job harder:
 
+* the answer to the **loser of two simultaneous upserts** of the same order:
+  the fake serialises them and answers `new: false`; real HubSpot might
+  answer the loser with a `400` instead. Either way nothing is duplicated --
+  a `400` leaves the order in `error` and `resume` settles it -- but the
+  exact response was not observed live;
+
 * the **bodies** of the `401`, `404` and `429`: HubSpot's documented
   `status`/`message`/`category` shape, and on the 429 `errorType:
   RATE_LIMIT` with `policyName` (`TEN_SECONDLY_ROLLING` here). The client
@@ -519,7 +528,8 @@ on `ConflictingRedelivery`, 5xx otherwise so the source redelivers.
 To run the sync against a real portal:
 
 1. A HubSpot account (a free one works) and a key with contacts and deals
-   read+write and schemas.deals read: a service key, or a private app token
+   read+write and schemas.deals read+write (the live run used that set; whether
+   read alone suffices was not tried): a service key, or a private app token
    where private apps are still offered.
 2. The deal property `external_order_id` with `hasUniqueValue: true`. The
    script checks it and refuses to run without it.
@@ -537,7 +547,12 @@ To run the sync against a real portal:
    key it prints a skip line and exits 0.
 
 Run on 2026-10-30 against a free HubSpot portal with a service key,
-`python scripts/live_smoke.py --env-file .env.local --naive-ab`:
+`python scripts/live_smoke.py --env-file .env.local --naive-ab`. The block
+below is **abridged, not verbatim**: ids shortened to their last six digits,
+the rate-header dict summarised, the 400 message and long lines reflowed,
+and the `(contact_created=None, deal_created=None)` detail and the final
+`records to clean up` line dropped. Rerunning the command prints the full
+lines.
 
 ```
 property external_order_id: hasUniqueValue=True
