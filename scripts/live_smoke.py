@@ -157,7 +157,8 @@ def main(argv: list[str] | None = None) -> int:
             b = naive_deal_sync(client, naive_order)
             print(f"naive search-then-create, twice back to back on '{naive_order['id']}': "
                   f"deals {a} and {b} -> {'TWO deals' if a != b else 'one deal'}")
-        print(f"records to clean up: contact {first.contact_id}, deal {first.deal_id} (all named {order_id}*)")
+        extra = f", naive deals {a} and {b}" if args.naive_ab else ""
+        print(f"records to clean up: contact {first.contact_id}, deal {first.deal_id}{extra} (all named {order_id}*)")
         print("live smoke: PASS" if ok else "live smoke: FAIL")
         return 0 if ok else 1
     finally:

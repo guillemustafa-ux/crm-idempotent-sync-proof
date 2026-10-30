@@ -536,5 +536,26 @@ To run the sync against a real portal:
    back to back, on a second order that lives only in `dealname`. Without a
    key it prints a skip line and exits 0.
 
-TODO(T5): paste the output of `python scripts/live_smoke.py --env-file
-.env.local` here, with the date and the ids shortened.
+Run on 2026-10-30 against a free HubSpot portal with a service key,
+`python scripts/live_smoke.py --env-file .env.local --naive-ab`:
+
+```
+property external_order_id: hasUniqueValue=True
+delivery 1 (ledger A)       -> contact …418302 new=True,  deal …864254 new=True
+delivery 2 (fresh ledger B) -> contact …418302 new=False, deal …864254 new=False
+delivery 3 (ledger A again) -> synced, nothing sent
+replay against a lost ledger: SAME contact and deal
+plain create with a taken external_order_id: HTTP 400 VALIDATION_ERROR:
+  ... propertyName=external_order_id, value=SMOKE-20261030-175301} on …342538.
+  …864254 already has that value.
+deal …864254 associated contacts: ['…418302']
+rate headers: daily 250000, max 100 per interval-milliseconds 10000
+naive search-then-create, twice back to back on 'SMOKE-20261030-175301-NAIVE':
+  deals …600975 and …025815 -> TWO deals
+live smoke: PASS
+```
+
+The last line is the point of the repository, observed on a real portal:
+the naive path created two deals for one order; the upsert path never did.
+The id named in the `400` (`…342538`) does not exist afterwards -- checked
+by `GET`, which answered 404, on an earlier probe of the same error.
