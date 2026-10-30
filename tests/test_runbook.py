@@ -15,9 +15,10 @@ import pytest
 
 from crm_idempotent_sync_proof.client import UnknownOutcome
 from crm_idempotent_sync_proof.fake_hubspot import ROUTE_DEAL_UPSERT
-from crm_idempotent_sync_proof.ledger import SYNC_SYNCED
+from crm_idempotent_sync_proof.ledger import SYNC_CONFLICT, SYNC_SYNCED
 from crm_idempotent_sync_proof.reconcile import (
     ASSOCIATION_MISSING,
+    CONFLICT,
     ID_MISMATCH,
     MISSING_IN_HUBSPOT,
     OK,
@@ -133,3 +134,19 @@ def test_the_cli_without_a_service_key_refuses_and_sends_nothing(hubspot, db_pat
     assert proc.returncode == 2
     assert "HUBSPOT_SERVICE_KEY is not set" in proc.stderr
     assert hubspot.request_log == []
+
+
+def test_an_order_the_sync_refused_to_guess_about_is_left_for_a_human(
+    hubspot, engine_factory, ledger_factory, client_factory, make_webhook
+):
+    """``conflict`` is not retried by ``resume`` and is reported as such by ``reconcile``."""
+    hubspot.drop_response_before_commit(ROUTE_DEAL_UPSERT)
+    with pytest.raises(UnknownOutcome):
+        engine_factory(hubspot).handle_webhook(*make_webhook())
+    ledger_factory().record_error("ORD-1001", SYNC_CONFLICT, "LedgerConflict: decided by a human")
+    log_before = len(hubspot.request_log)
+
+    assert engine_factory(hubspot).resume() == {"ORD-1001": SYNC_CONFLICT}
+    (finding,) = reconcile(ledger_factory(), client_factory(hubspot))
+    assert (finding.verdict, finding.detail) == (CONFLICT, "LedgerConflict: decided by a human")
+    assert len(hubspot.request_log) == log_before and hubspot.deals() == []
